@@ -1,0 +1,13 @@
+name: Test Log workflow_run payload
+
+on:
+  workflow_run:
+    workflows: ["Test Build"]
+    types: [completed]
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump full workflow_run payload
+        run: echo '${{ toJson(github.event.workflow_run) }}'
