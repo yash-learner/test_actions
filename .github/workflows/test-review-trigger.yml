@@ -1,0 +1,46 @@
+name: Test Review Trigger
+
+on:
+  pull_request_review:
+    types:
+      - submitted
+
+permissions: {}
+
+jobs:
+  save-review-info:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump full pull_request_review event
+        env:
+          EVENT: ${{ toJson(github.event) }}
+        run: echo "$EVENT"
+
+      - name: Dump full review object
+        run: echo '${{ toJson(github.event.review) }}'
+
+      - name: Log key fields
+        run: |
+          echo "Review State: ${{ github.event.review.state }}"
+          echo "PR Number: ${{ github.event.pull_request.number }}"
+          echo "PR Head Repo: ${{ github.event.pull_request.head.repo.full_name }}"
+          echo "PR Base Repo: ${{ github.event.pull_request.base.repo.full_name }}"
+          echo "Reviewer: ${{ github.event.review.user.login }}"
+
+      - name: Save review info
+        if: github.event.review.state == 'changes_requested'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+        run: |
+          echo "$PR_NUMBER" > pr_number.txt
+          echo "$REVIEW_STATE" > review_state.txt
+
+      - name: Upload review info
+        if: github.event.review.state == 'changes_requested'
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-info
+          path: |
+            pr_number.txt
+            review_state.txt
