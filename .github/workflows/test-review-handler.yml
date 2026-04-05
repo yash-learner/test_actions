@@ -1,0 +1,100 @@
+name: Test Review Handler
+
+on:
+  workflow_run:
+    workflows: ["Test Review Trigger"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+jobs:
+  handle-review:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Dump full event payload
+        env:
+          EVENT: ${{ toJson(github.event) }}
+        run: echo "$EVENT"
+
+      - name: Dump workflow_run payload
+        env:
+          WORKFLOW_RUN: ${{ toJson(github.event.workflow_run) }}
+        run: echo "$WORKFLOW_RUN"
+
+      - name: Log key workflow_run fields
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          PULL_REQUESTS: ${{ toJson(github.event.workflow_run.pull_requests) }}
+        run: |
+          echo "=== workflow_run fields ==="
+          echo "head_sha: ${{ github.event.workflow_run.head_sha }}"
+          echo "head_branch: $HEAD_BRANCH"
+          echo "head_repository.full_name: ${{ github.event.workflow_run.head_repository.full_name }}"
+          echo "head_repository.owner.login: ${{ github.event.workflow_run.head_repository.owner.login }}"
+          echo "conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "event: ${{ github.event.workflow_run.event }}"
+          echo "id: ${{ github.event.workflow_run.id }}"
+          echo "run_number: ${{ github.event.workflow_run.run_number }}"
+          echo "=== pull_requests array ==="
+          echo "$PULL_REQUESTS"
+
+      - name: Download review info
+        id: download
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: review-info
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Log artifact contents
+        if: steps.download.outcome == 'success'
+        run: |
+          echo "=== Artifact contents ==="
+          echo "pr_number.txt: $(cat pr_number.txt)"
+          echo "review_state.txt: $(cat review_state.txt)"
+
+      - name: Read and validate review info
+        if: steps.download.outcome == 'success'
+        id: review
+        run: |
+          PR_NUMBER=$(cat pr_number.txt)
+          REVIEW_STATE=$(cat review_state.txt)
+
+          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid PR number: $PR_NUMBER"
+            exit 1
+          fi
+
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "review_state=$REVIEW_STATE" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        if: steps.download.outcome == 'success'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.review.outputs.pr_number }}
+          REVIEW_STATE: ${{ steps.review.outputs.review_state }}
+        with:
+          script: |
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: [
+                "### 🧪 Test Review Handler Ran!",
+                "",
+                `**PR:** #${prNumber}`,
+                `**Review State:** ${process.env.REVIEW_STATE}`,
+                `**Head SHA:** \`${context.payload.workflow_run.head_sha}\``,
+                `**Head Branch:** ${context.payload.workflow_run.head_branch}`,
+                `**Head Repo:** ${context.payload.workflow_run.head_repository.full_name}`,
+              ].join("\n")
+            });
