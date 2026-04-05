@@ -118,3 +118,14 @@ jobs:
                 `**Head Repo:** ${context.payload.workflow_run.head_repository.full_name}`,
               ].join("\n")
             });
+
+      - name: Handle Review Changes Requested
+        if: steps.check-artifact.outputs.exists == 'true' && steps.review.outputs.review_state == 'changes_requested'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.review.outputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr edit $PR_NUMBER --remove-label "needs review" --repo $REPO 2>/dev/null || true
+          gh pr edit $PR_NUMBER --remove-label "needs testing" --repo $REPO 2>/dev/null || true
+          gh pr edit $PR_NUMBER --add-label "changes required" --repo $REPO
