@@ -21,36 +21,6 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Get PR number
-        id: pr
-        uses: actions/github-script@v7
-        with:
-          result-encoding: string
-          script: |
-            const headRepo = context.payload.workflow_run.head_repository;
-            const headBranch = context.payload.workflow_run.head_branch;
-            const headSha = context.payload.workflow_run.head_sha;
-
-            console.log(`Looking up PR for ${headRepo.owner.login}:${headBranch} @ ${headSha}`);
-
-            const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              head: `${headRepo.owner.login}:${headBranch}`,
-            });
-
-            console.log(`Found ${prs.length} PRs`);
-            prs.forEach(p => console.log(`  PR #${p.number}: head.sha=${p.head.sha}`));
-
-            const pr = prs.find(p => p.head.sha === headSha);
-            if (!pr) {
-              core.setFailed(`No open PR found for ${headRepo.full_name}:${headBranch} @ ${headSha}`);
-              return;
-            }
-            console.log(`Matched PR #${pr.number}`);
-            return pr.number.toString();
-
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
@@ -58,6 +28,18 @@ jobs:
           path: build/
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read and validate PR number
+        id: pr
+        run: |
+          PR_NUMBER=$(cat build/pr_number.txt)
+
+          if ! [[ "$PR_NUMBER" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid PR number: $PR_NUMBER"
+            exit 1
+          fi
+
+          echo "result=$PR_NUMBER" >> $GITHUB_OUTPUT
 
       - name: List build contents
         run: |

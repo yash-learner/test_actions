@@ -9,5 +9,27 @@ jobs:
   log:
     runs-on: ubuntu-latest
     steps:
-      - name: Dump full workflow_run payload
-        run: echo '${{ toJson(github.event.workflow_run) }}'
+      - name: Dump full event payload
+        env:
+          EVENT: ${{ toJson(github.event) }}
+        run: echo "$EVENT"
+
+      - name: Dump workflow_run payload
+        env:
+          WORKFLOW_RUN: ${{ toJson(github.event.workflow_run) }}
+        run: echo "$WORKFLOW_RUN"
+
+      - name: Log key fields
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          PULL_REQUESTS: ${{ toJson(github.event.workflow_run.pull_requests) }}
+        run: |
+          echo "=== Key workflow_run fields ==="
+          echo "head_sha: ${{ github.event.workflow_run.head_sha }}"
+          echo "head_branch: $HEAD_BRANCH"
+          echo "head_repository.full_name: ${{ github.event.workflow_run.head_repository.full_name }}"
+          echo "head_repository.owner.login: ${{ github.event.workflow_run.head_repository.owner.login }}"
+          echo "conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "event: ${{ github.event.workflow_run.event }}"
+          echo "=== pull_requests array ==="
+          echo "$PULL_REQUESTS"
