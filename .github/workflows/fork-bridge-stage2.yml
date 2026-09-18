@@ -1,0 +1,45 @@
+name: Fork Bridge Stage 2
+
+on:
+  workflow_run:
+    workflows: ["Fork Bridge Stage 1"]
+    types: [completed]
+
+permissions:
+  actions: read   # to download the artifact from the triggering run
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: workflow_run context + THE KEY ASSERTION (secret present here?)
+        env:
+          DUMMY: ${{ secrets.TEST_FORK_SECRET }}
+        run: |
+          echo "triggering event = ${{ github.event.workflow_run.event }}"
+          echo "head_repository  = ${{ github.event.workflow_run.head_repository.full_name }}"
+          echo "base repository  = ${{ github.repository }}"
+          echo "head_branch      = ${{ github.event.workflow_run.head_branch }}"
+          echo "stage1 run id    = ${{ github.event.workflow_run.id }}"
+          if [ -n "$DUMMY" ]; then
+            echo "STAGE2 secret: PRESENT ✅  (bridge recovered it, even on a fork)"
+          else
+            echo "STAGE2 secret: EMPTY ❌"
+          fi
+
+      - name: Download Stage 1 context
+        uses: actions/download-artifact@v4
+        with:
+          name: review-context
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Recover + validate context (treat artifact as untrusted)
+        run: |
+          PR=$(cat pr_number.txt); CID=$(cat comment_id.txt)
+          echo "recovered PR      = $PR"
+          echo "recovered comment = $CID"
+          [[ "$PR"  =~ ^[0-9]+$ ]] || { echo "::error::bad PR number"; exit 1; }
+          [[ "$CID" =~ ^[0-9]+$ ]] || { echo "::error::bad comment id"; exit 1; }
+          echo "comment body:"; base64 -d comment_body_b64.txt; echo
