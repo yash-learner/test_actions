@@ -1,0 +1,36 @@
+name: concurrency-old-shared
+
+# Mirrors care-review's OLD behavior: one per-PR group shared by ALL triggers.
+# A comment event lands in the same group as the review and cancels it.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  workflow_dispatch:
+
+# OLD: push AND every comment share one slot -> comment cancels in-flight review.
+concurrency:
+  group: gh-aw-old-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions: {}   # no checkout of PR code — safe under pull_request_target
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Context
+        run: |
+          echo "event      = ${{ github.event_name }}"
+          echo "run_id     = ${{ github.run_id }}"
+          echo "pr/issue   = ${{ github.event.pull_request.number || github.event.issue.number }}"
+          echo "comment_id = ${{ github.event.comment.id }}"
+          echo "head_sha   = ${{ github.event.pull_request.head.sha }}"
+          echo "GROUP      = gh-aw-old-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}"
+      - name: Simulate agent (2 min)
+        run: for i in $(seq 1 24); do echo "reviewing... $i/24"; sleep 5; done
+      - name: Done
+        run: echo "REVIEW COMPLETED (was NOT cancelled)"
