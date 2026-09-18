@@ -10,6 +10,7 @@ on:
         description: review comment id to reply to
         required: true
         type: string
+checkout: false
 permissions:
   contents: read
   pull-requests: read
@@ -18,7 +19,7 @@ engine:
 safe-outputs:
   reply-to-pull-request-review-comment:
     max: 1
-    target: "*"
+    target: "${{ github.event.inputs.pr }}"
 ---
 
 # Fork bridge Stage 3 — reply off explicit inputs
