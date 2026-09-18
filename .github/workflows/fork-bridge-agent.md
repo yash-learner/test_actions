@@ -18,6 +18,7 @@ engine:
 safe-outputs:
   reply-to-pull-request-review-comment:
     max: 1
+    target: "*"
 ---
 
 # Fork bridge Stage 3 — reply off explicit inputs
