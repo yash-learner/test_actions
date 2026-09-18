@@ -1,0 +1,46 @@
+name: Fork Bridge Stage 1
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions: {}   # zero token power — proves the untrusted side needs nothing GitHub withholds
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    # issue_comment also fires on plain issues; only act on PR comments
+    if: ${{ github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request != null }}
+    steps:
+      - name: Show event + whether the secret is visible HERE (untrusted event)
+        env:
+          DUMMY: ${{ secrets.TEST_FORK_SECRET }}
+        run: |
+          echo "event          = ${{ github.event_name }}"
+          echo "comment author = ${{ github.event.comment.user.login }}"
+          echo "author assoc   = ${{ github.event.comment.author_association }}"
+          if [ -n "$DUMMY" ]; then
+            echo "STAGE1 secret: PRESENT (this is a same-repo PR)"
+          else
+            echo "STAGE1 secret: EMPTY (this is a fork PR — GitHub withheld it)"
+          fi
+
+      # env-mapping (NOT ${{ }} in the script) avoids comment-body shell injection
+      - name: Save context to artifact
+        env:
+          PR:   ${{ github.event.issue.number || github.event.pull_request.number }}
+          CID:  ${{ github.event.comment.id }}
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          mkdir -p ctx
+          printf '%s' "$PR"   > ctx/pr_number.txt
+          printf '%s' "$CID"  > ctx/comment_id.txt
+          printf '%s' "$BODY" | base64 -w0 > ctx/comment_body_b64.txt
+
+      - name: Upload context
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-context
+          path: ctx/
