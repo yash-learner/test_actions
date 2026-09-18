@@ -1,0 +1,36 @@
+name: concurrency-new-split
+
+# Mirrors the fix: group split by event class via github.event.comment.id.
+#   push / PR events  -> ...-<pr>-review        (one slot; new push cancels stale review)
+#   comment events    -> ...-<pr>-<comment_id>  (one slot per comment; never cancels the review)
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  workflow_dispatch:
+
+concurrency:
+  group: gh-aw-new-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}-${{ github.event.comment.id || 'review' }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Context
+        run: |
+          echo "event      = ${{ github.event_name }}"
+          echo "run_id     = ${{ github.run_id }}"
+          echo "pr/issue   = ${{ github.event.pull_request.number || github.event.issue.number }}"
+          echo "comment_id = ${{ github.event.comment.id }}"
+          echo "head_sha   = ${{ github.event.pull_request.head.sha }}"
+          echo "GROUP      = gh-aw-new-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}-${{ github.event.comment.id || 'review' }}"
+      - name: Simulate agent (2 min)
+        run: for i in $(seq 1 24); do echo "reviewing... $i/24"; sleep 5; done
+      - name: Done
+        run: echo "REVIEW COMPLETED (was NOT cancelled)"
