@@ -6,7 +6,7 @@ on:
     types: [completed]
 
 permissions:
-  actions: read   # to download the artifact from the triggering run
+  actions: write   # read: download Stage 1 artifact; write: workflow_dispatch Stage 3
 
 jobs:
   recover:
@@ -43,3 +43,18 @@ jobs:
           [[ "$PR"  =~ ^[0-9]+$ ]] || { echo "::error::bad PR number"; exit 1; }
           [[ "$CID" =~ ^[0-9]+$ ]] || { echo "::error::bad comment id"; exit 1; }
           echo "comment body:"; base64 -d comment_body_b64.txt; echo
+
+      # workflow_dispatch is the recursion-guard exception, so GITHUB_TOKEN can fire Stage 3
+      - name: Dispatch Stage 3 (gh-aw agent) with recovered ids
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR=$(cat pr_number.txt); CID=$(cat comment_id.txt)
+          [[ "$PR"  =~ ^[0-9]+$ ]] || { echo "::error::bad PR number"; exit 1; }
+          [[ "$CID" =~ ^[0-9]+$ ]] || { echo "::error::bad comment id"; exit 1; }
+          gh workflow run fork-bridge-agent.lock.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${{ github.event.repository.default_branch }}" \
+            -f pr="$PR" \
+            -f comment_id="$CID"
+          echo "dispatched Stage 3 for PR #$PR comment $CID"
