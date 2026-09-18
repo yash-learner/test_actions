@@ -52,9 +52,17 @@ jobs:
           PR=$(cat pr_number.txt); CID=$(cat comment_id.txt)
           [[ "$PR"  =~ ^[0-9]+$ ]] || { echo "::error::bad PR number"; exit 1; }
           [[ "$CID" =~ ^[0-9]+$ ]] || { echo "::error::bad comment id"; exit 1; }
-          gh workflow run fork-bridge-agent.lock.yml \
+          # PR/CID are digit-validated above, so --argjson cannot inject.
+          AW_CONTEXT=$(jq -nc \
+            --argjson run_id "${{ github.event.workflow_run.id }}" \
+            --arg repo "${{ github.repository }}" \
+            --arg workflow_id "fork-bridge-stage2" \
+            --arg item_type "pull_request" \
+            --argjson item_number "$PR" \
+            --argjson comment_id "$CID" \
+            '{run_id:$run_id, repo:$repo, workflow_id:$workflow_id, item_type:$item_type, item_number:$item_number, comment_id:$comment_id}')
+          gh workflow run fork-bridge-agent-awctx.lock.yml \
             --repo "${{ github.repository }}" \
             --ref "${{ github.event.repository.default_branch }}" \
-            -f pr="$PR" \
-            -f comment_id="$CID"
-          echo "dispatched Stage 3 for PR #$PR comment $CID"
+            -f aw_context="$AW_CONTEXT"
+          echo "dispatched Stage 3 (aw_context variant) for PR #$PR comment $CID"

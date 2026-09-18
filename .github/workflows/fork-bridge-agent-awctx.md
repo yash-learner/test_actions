@@ -6,6 +6,7 @@ on:
         description: "Agent caller context JSON (item_type/item_number/comment_id)"
         required: true
         type: string
+checkout: false
 permissions:
   contents: read
   pull-requests: read
@@ -14,7 +15,7 @@ engine:
 safe-outputs:
   reply-to-pull-request-review-comment:
     max: 1
-    target: "*"
+    target: "${{ fromJSON(github.event.inputs.aw_context).item_number }}"
 ---
 
 # Fork bridge Stage 3 — aw_context variant (target star)
